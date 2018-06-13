@@ -2,8 +2,8 @@
 from asyncio import Future
 import asyncio
 from asyncio.queues import Queue
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+# import uvloop
+# asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 import tensorflow as tf
 import numpy as np
@@ -241,7 +241,6 @@ class MCTS_tree(object):
         # self.policy_network = in_policy_network
         self.forward = in_forward
         self.node_lock = defaultdict(Lock)
-
         self.virtual_loss = 3
         self.now_expanding = set()
         self.expanded = set()
@@ -334,24 +333,25 @@ class MCTS_tree(object):
         """Check expanded status"""
         return key in self.expanded
 
-    async def tree_search(self, node, current_player, restrict_round) -> float:
+    async def tree_search(self, node, current_player, restrict_round,id) -> float:
         """Independent MCTS, stands for one simulation"""
         self.running_simulation_num += 1
-
         # reduce parallel search number
         with await self.sem:
-            value = await self.start_tree_search(node, current_player, restrict_round)
+            value = await self.start_tree_search(node, current_player, restrict_round,id,0)
             # logger.debug(f"value: {value}")
             # logger.debug(f'Current running threads : {RUNNING_SIMULATION_NUM}')
             self.running_simulation_num -= 1
 
             return value
 
-    async def start_tree_search(self, node, current_player, restrict_round)->float:
+    async def start_tree_search(self, node, current_player, restrict_round,id,depth)->float:
         """Monte Carlo Tree search Select,Expand,Evauate,Backup"""
         now_expanding = self.now_expanding
-
+        depth += 1
+        print("playout {}.{}".format(id,depth))
         while node in now_expanding:
+            print("---playout {}.{} await".format(id, depth))
             await asyncio.sleep(1e-4)
 
         if not self.is_expanded(node):    # and node.is_leaf()
@@ -415,7 +415,7 @@ class MCTS_tree(object):
             elif restrict_round >= 60:
                 value = 0.0
             else:
-                value = await self.start_tree_search(node, current_player, restrict_round)  # next move
+                value = await self.start_tree_search(node, current_player, restrict_round,id,depth)  # next move
             # if node is not None:
             #     value = await self.start_tree_search(node)  # next move
             # else:
@@ -459,7 +459,10 @@ class MCTS_tree(object):
             # features = features.reshape((shape[0] * shape[1], shape[2], shape[3], shape[4]))
             # print("prediction_worker [features.shape] after : ", features.shape)
             # policy_ary, value_ary = self.run_many(features)
+            start = time.time()
             action_probs, value = self.forward(features)
+            cost = time.time() - start
+            print("size {} cost {}".format(len(features),cost))
             for p, v, item in zip(action_probs, value, item_list):
                 item.future.set_result((p, v))
 
@@ -488,7 +491,7 @@ class MCTS_tree(object):
 
         coroutine_list = []
         for _ in range(playouts):
-            coroutine_list.append(self.tree_search(node, current_player, restrict_round))
+            coroutine_list.append(self.tree_search(node, current_player, restrict_round,_))
         coroutine_list.append(self.prediction_worker())
         self.loop.run_until_complete(asyncio.gather(*coroutine_list))
 
