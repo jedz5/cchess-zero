@@ -19,6 +19,16 @@ from policy_value_network_gpus import *
 import scipy.stats
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor
+import logging
+
+
+logging.basicConfig(level = logging.INFO,format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('train')
+handler = logging.FileHandler('train.log','w')
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 def flipped_uci_labels(param):
     def repl(x):
@@ -265,7 +275,7 @@ class MCTS_tree(object):
                 ret = n.Q
                 find = True
         if(find == False):
-            print("{} not exist in the child".format(move))
+            logger.info("{} not exist in the child".format(move))
         return ret
 
     def update_tree(self, act):
@@ -349,16 +359,17 @@ class MCTS_tree(object):
         """Monte Carlo Tree search Select,Expand,Evauate,Backup"""
         now_expanding = self.now_expanding
         depth += 1
-        print("playout {}.{}".format(id,depth))
+
         while node in now_expanding:
-            print("---playout {}.{} await".format(id, depth))
+            if depth > 3:
+                logger.info("---playout {}.{} await".format(id, depth))
             await asyncio.sleep(1e-4)
 
         if not self.is_expanded(node):    # and node.is_leaf()
             """is leaf node try evaluate and expand"""
             # add leaf node to expanding list
             self.now_expanding.add(node)
-
+            logger.info("playout {}.{} expand".format(id, depth))
             positions = self.generate_inputs(node.state, current_player)
             # positions = np.expand_dims(positions, 0)
 
@@ -387,7 +398,7 @@ class MCTS_tree(object):
             """node has already expanded. Enter select phase."""
             # select child node with maximum action scroe
             last_state = node.state
-
+            logger.info("playout {}.{}".format(id, depth))
             action, node = node.select_new(c_PUCT)
             current_player = "w" if current_player == "b" else "b"
             if is_kill_move(last_state, node.state) == 0:
@@ -451,9 +462,12 @@ class MCTS_tree(object):
                     margin -= 1
                 await asyncio.sleep(1e-3)
                 continue
+            # start = time.time()
             item_list = [q.get_nowait() for _ in range(q.qsize())]  # type: list[QueueItem]
             #logger.debug(f"predicting {len(item_list)} items")
             features = np.asarray([item.feature for item in item_list])    # asarray
+            # cost = time.time() - start
+            # logger.info("features cost {}".format(cost))
             # print("prediction_worker [features.shape] before : ", features.shape)
             # shape = features.shape
             # features = features.reshape((shape[0] * shape[1], shape[2], shape[3], shape[4]))
@@ -462,7 +476,7 @@ class MCTS_tree(object):
             start = time.time()
             action_probs, value = self.forward(features)
             cost = time.time() - start
-            print("size {} cost {}".format(len(features),cost))
+            logger.info("size {} cost {}".format(len(features),cost))
             for p, v, item in zip(action_probs, value, item_list):
                 item.future.set_result((p, v))
 
@@ -1435,7 +1449,9 @@ class cchess_main(object):
 
     def select_move(self, mcts_or_net):
         if mcts_or_net == "mcts":
+            start = time.time()
             action, probs, win_rate = self.get_action(self.game_borad.state, self.temperature)
+            logger.info("action cost {}".format(time.time() - start))
             # win_rate = self.mcts.Q(action) / 2.0 + 0.5
         elif mcts_or_net == "net":
             positions = self.mcts.generate_inputs(self.game_borad.state, self.game_borad.current_player)
@@ -1503,7 +1519,9 @@ class cchess_main(object):
         start_time = time.time()
         # self.game_borad.print_borad(self.game_borad.state)
         while(not game_over):
+            start = time.time()
             action, probs, win_rate = self.get_action(self.game_borad.state, self.temperature)
+            logger.info("action cost {}".format(time.time() - start))
             state, palyer = self.mcts.try_flip(self.game_borad.state, self.game_borad.current_player, self.mcts.is_black_turn(self.game_borad.current_player))
             states.append(state)
             prob = np.zeros(labels_len)
