@@ -242,7 +242,7 @@ virtual_loss = 3
 cut_off_depth = 30
 
 class MCTS_tree(object):
-    def __init__(self, in_state, in_forward, search_threads):
+    def __init__(self, in_state, in_forward, search_threads,playout):
         self.noise_eps = 0.25
         self.dirichlet_alpha = 0.3    #0.03
         self.p_ = (1 - self.noise_eps) * 1 + self.noise_eps * np.random.dirichlet([self.dirichlet_alpha])
@@ -260,6 +260,8 @@ class MCTS_tree(object):
         self.queue = Queue(search_threads)
         self.loop = asyncio.get_event_loop()
         self.running_simulation_num = 0
+        self.playout = playout
+        self.backup_cost = [0 for x in range(self.playout)]
 
     def reload(self):
         self.root = leaf_node(None, self.p_,
@@ -353,6 +355,8 @@ class MCTS_tree(object):
             # logger.debug(f'Current running threads : {RUNNING_SIMULATION_NUM}')
             self.running_simulation_num -= 1
 
+            self.backup_cost[id][0] = time.time() - self.backup_cost[id][0]
+            logger.info("{}.{} depth {} len {} backup {}".format(id,0,self.backup_cost[id][1],self.backup_cost[id][2],self.backup_cost[id][0]))
             return value
 
     async def start_tree_search(self, node, current_player, restrict_round,id,depth)->float:
@@ -364,7 +368,6 @@ class MCTS_tree(object):
             if depth > 3:
                 logger.info("---playout {}.{} await".format(id, depth))
             await asyncio.sleep(1e-4)
-
         if not self.is_expanded(node):    # and node.is_leaf()
             """is leaf node try evaluate and expand"""
             # add leaf node to expanding list
@@ -378,11 +381,13 @@ class MCTS_tree(object):
             await future
             action_probs, value = future.result()
 
+            self.backup_cost[id] = [time.time(), depth, 0]
             # action_probs, value = self.forward(positions)
             if self.is_black_turn(current_player):
                 action_probs = cchess_main.flip_policy(action_probs)
 
             moves = GameBoard.get_legal_moves(node.state, current_player)
+            self.backup_cost[id][2] = len(moves)
             # print("current_player : ", current_player)
             # print(moves)
             node.expand(moves, action_probs)
@@ -436,7 +441,6 @@ class MCTS_tree(object):
             # self.virtual_loss_undo(key, action_t)
             node.N += -virtual_loss
             node.W += virtual_loss
-
             # on returning search path
             # update: N, W, Q, U
             # self.back_up_value(key, action_t, value)
@@ -1158,7 +1162,7 @@ class cchess_main(object):
         # self.current_player = 'w'    #“w”表示红方，“b”表示黑方。
         self.policy_value_netowrk = policy_value_network(res_block_nums) if processor == 'cpu' else policy_value_network_gpus(num_gpus, res_block_nums)
         self.search_threads = in_search_threads
-        self.mcts = MCTS_tree(self.game_borad.state, self.policy_value_netowrk.forward, self.search_threads)
+        self.mcts = MCTS_tree(self.game_borad.state, self.policy_value_netowrk.forward, self.search_threads,self.playout_counts)
         self.exploration = exploration
         self.resign_threshold = -0.8    #0.05
         self.global_step = 0
