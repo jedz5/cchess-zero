@@ -6,8 +6,8 @@ import os
 
 PS_OPS = ['Variable', 'VariableV2', 'AutoReloadVariable']
 
-in_size = [None, 19, 19, 17]
-out_size = 361
+in_size = [None, 11, 15, 46]
+out_size = 1322
 class policy_value_network_test(object):
     def __init__(self, num_gpus = 1, res_block_nums = 19):
         #         self.ckpt = os.path.join(os.getcwd(), 'models/best_model.ckpt-13999')    # TODO
@@ -381,34 +381,35 @@ class policy_value_network_test(object):
         # return action_probs, value
 if __name__ == '__main__':
     net = policy_value_network_test()
-    batch = 1
-    input_data = np.ones([batch,19,19,17])
+    in_size1 = in_size.copy()
+    in_size1[0] = 1
+    input_data = np.ones(in_size1)
     for i in range(10):
         st = time.time()
         r = net.forward(input_data)
         cost = time.time() - st
-        print("cost {}".format(cost/batch))
+        print("size {} avg cost {}".format(in_size1[0], cost / in_size1[0]))
     print("-----------end")
-    batch = 4
-    input_data = np.ones([batch, 19, 19, 17])
+    in_size1[0] = 16
+    input_data = np.ones(in_size1)
     for i in range(10):
         st = time.time()
         r = net.forward(input_data)
         cost = time.time() - st
-        print("cost {}".format(cost / batch))
+        print("size {} avg cost {}".format(in_size1[0], cost / in_size1[0]))
     print("-----------end")
-    batch = 8
-    input_data = np.ones([batch,19,19,17])
+    in_size1[0] = 32
+    input_data = np.ones(in_size1)
     for i in range(10):
         st = time.time()
         r = net.forward(input_data)
         cost = time.time() - st
-        print("cost {}".format(cost/batch))
+        print("size {} avg cost {}".format(in_size1[0], cost / in_size1[0]))
     print("-----------end")
-    batch = 8
-    input_data = np.ones([batch, 19, 19, 17])
+    in_size1[0] = 64
+    input_data = np.ones(in_size1)
     for i in range(10):
         st = time.time()
         r = net.forward(input_data)
         cost = time.time() - st
-        print("cost {}".format(cost / batch))
+        print("size {} avg cost {}".format(in_size1[0],cost / in_size1[0]))
