@@ -6,9 +6,10 @@ import os
 
 PS_OPS = ['Variable', 'VariableV2', 'AutoReloadVariable']
 
-
+in_size = [None, 19, 19, 17]
+out_size = 361
 class policy_value_network_test(object):
-    def __init__(self, num_gpus = 1, in_size = [None, 19, 19, 17],out_size = 361,res_block_nums = 19):
+    def __init__(self, num_gpus = 1, res_block_nums = 19):
         #         self.ckpt = os.path.join(os.getcwd(), 'models/best_model.ckpt-13999')    # TODO
         self.num_gpus = num_gpus
         self.save_dir = "./gpu_models_test"
@@ -146,7 +147,7 @@ class policy_value_network_test(object):
                                                             is_training=self.training, activation_fn=tf.nn.relu)
 
             # print(self.policy_head.shape)  # (?, 9, 10, 2)
-            policy_head = tf.reshape(policy_head, [-1, 9 * 10 * 2])
+            policy_head = tf.reshape(policy_head, [-1, in_size[1] * in_size[2] * 2])
             policy_head = tf.contrib.layers.fully_connected(policy_head, self.prob_size, activation_fn=None)
             # prediction = tf.nn.softmax(policy_head)
             self.policy_head.append(policy_head)    #prediction
@@ -157,7 +158,7 @@ class policy_value_network_test(object):
             value_head = tf.contrib.layers.batch_norm(value_head, center=False, epsilon=1e-5, fused=True,
                                            is_training=self.training, activation_fn=tf.nn.relu)
             # print(self.value_head.shape)  # (?, 9, 10, 1)
-            value_head = tf.reshape(value_head, [-1, 9 * 10 * 1])
+            value_head = tf.reshape(value_head, [-1,in_size[1]*in_size[2]])
             value_head = tf.contrib.layers.fully_connected(value_head, 256, activation_fn=tf.nn.relu)
             value_head = tf.contrib.layers.fully_connected(value_head, 1, activation_fn=tf.nn.tanh)
             self.value_head.append(value_head)
@@ -380,8 +381,34 @@ class policy_value_network_test(object):
         # return action_probs, value
 if __name__ == '__main__':
     net = policy_value_network_test()
-    input_data = np.ones([64,19,19,17])
-    for i in range(20):
+    batch = 1
+    input_data = np.ones([batch,19,19,17])
+    for i in range(10):
         st = time.time()
         r = net.forward(input_data)
-        print("cost {}".format(time.time() - st))
+        cost = time.time() - st
+        print("cost {}".format(cost/batch))
+    print("-----------end")
+    batch = 4
+    input_data = np.ones([batch, 19, 19, 17])
+    for i in range(10):
+        st = time.time()
+        r = net.forward(input_data)
+        cost = time.time() - st
+        print("cost {}".format(cost / batch))
+    print("-----------end")
+    batch = 8
+    input_data = np.ones([batch,19,19,17])
+    for i in range(10):
+        st = time.time()
+        r = net.forward(input_data)
+        cost = time.time() - st
+        print("cost {}".format(cost/batch))
+    print("-----------end")
+    batch = 8
+    input_data = np.ones([batch, 19, 19, 17])
+    for i in range(10):
+        st = time.time()
+        r = net.forward(input_data)
+        cost = time.time() - st
+        print("cost {}".format(cost / batch))
